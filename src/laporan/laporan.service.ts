@@ -53,7 +53,7 @@ export class LaporanService {
       Bucket: this.bucket,
       Key: key,
     });
-    
+
     return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 });
   }
 
@@ -120,21 +120,23 @@ export class LaporanService {
   async findAll() {
     const laporans = await this.laporanRepository.find();
 
-    return await Promise.all(laporans.map(async (laporan) => ({
-      ...laporan,
-      needApproveFiles: await Promise.all(
-        laporan.needApproveFiles.map(async (file) => ({
-          ...file,
-          url: await this.getSignedFileUrl(file.path),
-        }))
-      ),
-      noNeedApproveFiles: await Promise.all(
-        laporan.noNeedApproveFiles.map(async (file) => ({
-          ...file,
-          url: await this.getSignedFileUrl(file.path),
-        }))
-      ),
-    })));
+    return await Promise.all(
+      laporans.map(async (laporan) => ({
+        ...laporan,
+        needApproveFiles: await Promise.all(
+          laporan.needApproveFiles.map(async (file) => ({
+            ...file,
+            url: await this.getSignedFileUrl(file.path),
+          })),
+        ),
+        noNeedApproveFiles: await Promise.all(
+          laporan.noNeedApproveFiles.map(async (file) => ({
+            ...file,
+            url: await this.getSignedFileUrl(file.path),
+          })),
+        ),
+      })),
+    );
   }
 
   async findOne(id: string) {
@@ -149,13 +151,13 @@ export class LaporanService {
         laporan.needApproveFiles.map(async (file) => ({
           ...file,
           url: await this.getSignedFileUrl(file.path),
-        }))
+        })),
       ),
       noNeedApproveFiles: await Promise.all(
         laporan.noNeedApproveFiles.map(async (file) => ({
           ...file,
           url: await this.getSignedFileUrl(file.path),
-        }))
+        })),
       ),
     };
   }
