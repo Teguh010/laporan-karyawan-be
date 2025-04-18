@@ -9,7 +9,7 @@ services:
       - "3000:3000"
     environment:
       - DB_TYPE=mysql
-      - DB_HOST=db
+      - DB_HOST=db    # Ubah ke 'db' karena menggunakan service name
       - DB_PORT=3306
       - DB_USERNAME=${DB_USERNAME}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -26,6 +26,8 @@ services:
       - WASABI_REGION=${WASABI_REGION}
       - WASABI_ENDPOINT=${WASABI_ENDPOINT}
       - FRONTEND_URL=${FRONTEND_URL}
+    networks:
+      - app-network    # Tambahkan network
     volumes:
       - uploads:/app/uploads
     depends_on:
@@ -38,8 +40,16 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
       - MYSQL_DATABASE=${DB_DATABASE}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    networks:
+      - app-network    # Tambahkan network
     volumes:
       - mysql_data:/var/lib/mysql
+
+networks:
+  app-network:    # Definisikan network
+    driver: bridge
 
 volumes:
   mysql_data:
