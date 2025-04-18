@@ -8,14 +8,20 @@ import {
   Body,
   UseInterceptors,
   UploadedFiles,
+  UseGuards,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { LaporanService } from './laporan.service';
 import { CreateLaporanDto } from './dto/create-laporan.dto';
 import { UpdateLaporanDto } from './dto/update-laporan.dto';
 import { multerConfig } from '../config/multer.config';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../auth/enums/role.enum';
 
 @Controller('laporan')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class LaporanController {
   constructor(private readonly laporanService: LaporanService) {}
 
@@ -29,6 +35,7 @@ export class LaporanController {
       multerConfig,
     ),
   )
+  @Roles(UserRole.VENDOR)
   async createLaporan(
     @Body() createLaporanDto: CreateLaporanDto,
     @UploadedFiles()
@@ -41,11 +48,13 @@ export class LaporanController {
   }
 
   @Get(':id')
+  @Roles(UserRole.VENDOR, UserRole.EM)
   getLaporanDetail(@Param('id') id: string) {
     return this.laporanService.findOne(id);
   }
 
   @Get()
+  @Roles(UserRole.VENDOR, UserRole.EM, UserRole.USER)
   getAllLaporan() {
     return this.laporanService.findAll();
   }

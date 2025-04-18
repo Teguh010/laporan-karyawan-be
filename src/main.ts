@@ -26,9 +26,10 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: 'http://localhost:9000',
+    origin: process.env.FRONTEND_URL || 'http://localhost:9000',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   });
 
   await app.listen(process.env.PORT || 3000);
