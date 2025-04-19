@@ -22,9 +22,10 @@ import { AuthModule } from './auth/auth.module';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: true,
         autoLoadEntities: true,
-        ssl: {
-          rejectUnauthorized: false
-        }
+        ssl: false, // Ubah ini dari object ke false
+        extra: {
+          trustServerCertificate: true,
+        },
       }),
       inject: [ConfigService],
     }),

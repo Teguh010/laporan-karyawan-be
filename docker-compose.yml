@@ -14,6 +14,7 @@ services:
       - DB_USERNAME=postgres
       - DB_PASSWORD=y4rTnzRk53Brge6ogc0Nh1XQr2WrNWNQtBQw5Y9ckU0ILB1gekrhzDeSu4Q1Nkyq
       - DB_DATABASE=postgres
+      - PGSSLMODE=disable
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_TIME=${JWT_EXPIRATION_TIME}
       - NODE_ENV=production
