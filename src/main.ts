@@ -14,6 +14,14 @@ async function bootstrap() {
     }),
   );
 
+  // CORS - Enable for all origins
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization',
+    credentials: false
+  });
+
   // Swagger Setup
   const config = new DocumentBuilder()
     .setTitle('Laporan Karyawan API')
@@ -23,14 +31,6 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-
-  // CORS
-  app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:9000',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-  });
 
   await app.listen(process.env.PORT || 3000);
 }

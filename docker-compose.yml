@@ -26,7 +26,7 @@ services:
       - WASABI_BUCKET=${WASABI_BUCKET}
       - WASABI_REGION=${WASABI_REGION}
       - WASABI_ENDPOINT=${WASABI_ENDPOINT}
-      - FRONTEND_URL=${FRONTEND_URL}
+      - FRONTEND_URL=* # This will allow all origins
     networks:
       - app-network
     volumes:
