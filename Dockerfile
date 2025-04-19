@@ -14,6 +14,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install PostgreSQL client
+RUN apk add --no-cache postgresql-client
+
 COPY package*.json ./
 RUN npm install --production
 

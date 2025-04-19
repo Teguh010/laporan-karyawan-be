@@ -8,12 +8,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DB_TYPE=mysql
-      - DB_HOST=db    # Ubah ke 'db' karena menggunakan service name
-      - DB_PORT=3306
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_DATABASE=${DB_DATABASE}
+      - DB_TYPE=postgres
+      - DB_HOST=qocwkkooogcck04scc8scgg8
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=y4rTnzRk53Brge6ogc0Nh1XQr2WrNWNQtBQw5Y9ckU0ILB1gekrhzDeSu4Q1Nkyq
+      - DB_DATABASE=postgres
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION_TIME=${JWT_EXPIRATION_TIME}
       - NODE_ENV=production
@@ -27,30 +27,13 @@ services:
       - WASABI_ENDPOINT=${WASABI_ENDPOINT}
       - FRONTEND_URL=${FRONTEND_URL}
     networks:
-      - app-network    # Tambahkan network
+      - app-network
     volumes:
       - uploads:/app/uploads
-    depends_on:
-      - db
-
-  db:
-    image: mysql:8.0
-    ports:
-      - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
-      - MYSQL_DATABASE=${DB_DATABASE}
-      - MYSQL_USER=${DB_USERNAME}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
-    networks:
-      - app-network    # Tambahkan network
-    volumes:
-      - mysql_data:/var/lib/mysql
 
 networks:
-  app-network:    # Definisikan network
+  app-network:
     driver: bridge
 
 volumes:
-  mysql_data:
   uploads:
