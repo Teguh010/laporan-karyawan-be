@@ -32,6 +32,15 @@ export class Laporan {
     path: string;
   }[];
 
+  @Column({ default: 'draft' })
+  status: string;
+
+  @Column({ default: false })
+  emApproved: boolean;
+
+  @Column({ default: false })
+  vendorApproved: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
