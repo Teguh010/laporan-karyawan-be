@@ -85,7 +85,9 @@ export class LaporanService {
     );
   }
 
-  async create(createLaporanDto: CreateLaporanDto, files: any) {
+  async create(createLaporanDto: CreateLaporanDto, files: any, isSubmitted: boolean = false) {
+    console.log(`Creating laporan with isSubmitted: ${isSubmitted}`);
+    
     const needApproveFilesPromises =
       files.needApproveFiles?.map(async (file) => {
         const path = await this.uploadFileToS3(file, 'need-approve');
@@ -109,13 +111,21 @@ export class LaporanService {
       Promise.all(noNeedApproveFilesPromises),
     ]);
 
+    // Set status berdasarkan isSubmitted
+    const status = isSubmitted ? 'submitted' : 'entry';
+    console.log(`Setting laporan status to: ${status}`);
+
     const laporan = this.laporanRepository.create({
       ...createLaporanDto,
       needApproveFiles,
       noNeedApproveFiles,
+      status: status,
     });
 
-    return this.laporanRepository.save(laporan);
+    const savedLaporan = await this.laporanRepository.save(laporan);
+    console.log(`Laporan created with ID: ${savedLaporan.id}, status: ${savedLaporan.status}`);
+    
+    return savedLaporan;
   }
 
   async findAll() {
@@ -367,5 +377,22 @@ export class LaporanService {
         ),
       })),
     );
+  }
+
+  // Tambahkan method untuk submit laporan
+  async submitLaporan(id: string) {
+    const laporan = await this.laporanRepository.findOneBy({ id });
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with ID ${id} not found`);
+    }
+
+    console.log(`Submitting laporan ${id}, current status: ${laporan.status}`);
+  
+    laporan.status = 'submitted';
+    const savedLaporan = await this.laporanRepository.save(laporan);
+  
+    console.log(`Laporan ${id} submitted, new status: ${savedLaporan.status}`);
+  
+    return savedLaporan;
   }
 }

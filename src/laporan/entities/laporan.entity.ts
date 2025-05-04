@@ -32,7 +32,7 @@ export class Laporan {
     path: string;
   }[];
 
-  @Column({ default: 'draft' })
+  @Column({ default: 'entry' })
   status: string;
 
   @Column({ default: false })

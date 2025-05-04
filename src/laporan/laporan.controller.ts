@@ -55,8 +55,12 @@ export class LaporanController {
       needApproveFiles?: Express.Multer.File[];
       noNeedApproveFiles?: Express.Multer.File[];
     },
+    @Query('submit') submit?: string,
   ) {
-    return this.laporanService.create(createLaporanDto, files);
+    console.log(`Creating laporan with submit parameter: ${submit}`);
+    const isSubmitted = submit === 'true';
+    console.log(`isSubmitted value: ${isSubmitted}`);
+    return this.laporanService.create(createLaporanDto, files, isSubmitted);
   }
 
   @Get()
@@ -138,5 +142,13 @@ export class LaporanController {
   @Roles(UserRole.VENDOR, UserRole.EM)
   async deleteLaporan(@Param('id') id: string) {
     return this.laporanService.remove(id);
+  }
+
+  // Tambahkan endpoint untuk submit laporan
+  @Put(':id/submit')
+  @Roles(UserRole.VENDOR)
+  async submitLaporan(@Param('id') id: string) {
+    console.log(`Submit request received for laporan ${id}`);
+    return this.laporanService.submitLaporan(id);
   }
 }
