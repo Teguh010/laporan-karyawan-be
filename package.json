@@ -22,10 +22,10 @@
     "docker:run": "docker run -p 3000:3000 laporan-karyawan-api",
     "docker:compose": "docker-compose up -d",
     "docker:compose:down": "docker-compose down",
-    "migration:generate": "typeorm migration:generate -n",
-    "migration:run": "typeorm migration:run",
-    "migration:revert": "typeorm migration:revert",
-    "migration:create": "typeorm migration:create -n"
+    "migration:generate": "typeorm migration:generate --name UpdateLaporanEntityStructure --dataSource src/app.module.ts",
+    "migration:run": "typeorm migration:run --dataSource src/app.module.ts",
+    "migration:revert": "typeorm migration:revert --dataSource src/app.module.ts",
+    "migration:create": "typeorm migration:create --name"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",

@@ -20,12 +20,14 @@ import { AuthModule } from './auth/auth.module';
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
         synchronize: true,
         autoLoadEntities: true,
         ssl: false, // Ubah ini dari object ke false
         extra: {
           trustServerCertificate: true,
         },
+        logging: true,
       }),
       inject: [ConfigService],
     }),
