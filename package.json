@@ -21,7 +21,11 @@
     "docker:build": "docker build -t laporan-karyawan-api .",
     "docker:run": "docker run -p 3000:3000 laporan-karyawan-api",
     "docker:compose": "docker-compose up -d",
-    "docker:compose:down": "docker-compose down"
+    "docker:compose:down": "docker-compose down",
+    "migration:generate": "typeorm migration:generate -n",
+    "migration:run": "typeorm migration:run",
+    "migration:revert": "typeorm migration:revert",
+    "migration:create": "typeorm migration:create -n"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
