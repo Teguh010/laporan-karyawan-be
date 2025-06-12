@@ -21,7 +21,11 @@
     "docker:build": "docker build -t laporan-karyawan-api .",
     "docker:run": "docker run -p 3000:3000 laporan-karyawan-api",
     "docker:compose": "docker-compose up -d",
-    "docker:compose:down": "docker-compose down"
+    "docker:compose:down": "docker-compose down",
+    "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
+    "migration:generate": "npm run typeorm -- -d src/data-source.ts migration:generate -n",
+    "migration:run": "npm run typeorm -- -d src/data-source.ts migration:run",
+    "migration:revert": "npm run typeorm -- -d src/data-source.ts migration:revert"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
@@ -44,13 +48,12 @@
     "passport-jwt": "^4.0.1",
     "pg": "^8.14.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "typeorm": "^0.3.22"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
-    "@nestjs/cli": "^11.0.6",
+    "@nestjs/cli": "^11.0.7",
     "@nestjs/schematics": "^11.0.5",
     "@nestjs/testing": "^11.0.1",
     "@swc/cli": "^0.6.0",
@@ -75,6 +78,7 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "typeorm": "^0.3.24",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.20.0"
   },

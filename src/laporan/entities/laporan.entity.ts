@@ -11,56 +11,56 @@ export class Laporan {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  requestId: string;
+  @Column({ type: 'varchar', nullable: true })
+  requestId: string | null;
 
-  @Column()
-  title: string;
+  @Column({ type: 'varchar', nullable: true })
+  title: string | null;
 
-  @Column()
-  requestName: string;
+  @Column({ type: 'varchar', nullable: true })
+  requestName: string | null;
 
-  @Column()
-  companyCode: string;
+  @Column({ type: 'varchar', nullable: true })
+  companyCode: string | null;
 
-  @Column()
-  requestObjective: string;
+  @Column({ type: 'varchar', nullable: true })
+  requestObjective: string | null;
 
-  @Column()
-  requestBackground: string;
+  @Column({ type: 'varchar', nullable: true })
+  requestBackground: string | null;
 
-  @Column()
-  poType: string;
+  @Column({ type: 'varchar', nullable: true })
+  poType: string | null;
 
-  @Column()
-  assetType: string;
+  @Column({ type: 'varchar', nullable: true })
+  assetType: string | null;
 
-  @Column()
-  totalAmountIdr: number;
+  @Column({ type: 'integer', nullable: true })
+  totalAmountIdr: number | null;
 
-  @Column()
-  totalAmountOriginalCurrency: number;
+  @Column({ type: 'integer', nullable: true })
+  totalAmountOriginalCurrency: number | null;
 
-  @Column()
-  remarks: string;
+  @Column({ type: 'varchar', nullable: true })
+  remarks: string | null;
 
-  @Column()
-  assignTo: string;
+  @Column({ type: 'varchar', nullable: true })
+  assignTo: string | null;
 
-  @Column()
-  requestDate: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  requestDate: Date | null;
 
-  @Column()
-  department: string;
+  @Column({ type: 'varchar', nullable: true })
+  department: string | null;
 
-  @Column()
-  buyer: string;
+  @Column({ type: 'varchar', nullable: true })
+  buyer: string | null;
 
-  @Column()
-  deliveryDate: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  deliveryDate: Date | null;
 
-  @Column()
-  currency: string;
+  @Column({ type: 'varchar', nullable: true })
+  currency: string | null;
 
   @Column('json')
   needApproveFiles: {
@@ -82,7 +82,7 @@ export class Laporan {
 
   @Column({ default: false })
   vendorApproved: boolean;
-  
+
   @CreateDateColumn()
   createdAt: Date;
 
