@@ -22,9 +22,9 @@
     "docker:run": "docker run -p 3000:3000 laporan-karyawan-api",
     "docker:compose": "docker-compose up -d",
     "docker:compose:down": "docker-compose down",
-    "migration:generate": "typeorm migration:generate src/migrations/UpdateLaporanEntityStructure -c",
-    "migration:run": "typeorm migration:run -c",
-    "migration:revert": "typeorm migration:revert -c",
+    "migration:generate": "typeorm migration:generate src/migrations/UpdateLaporanEntityStructure --dataSource src/data-source.ts",
+    "migration:run": "typeorm migration:run --dataSource src/data-source.ts",
+    "migration:revert": "typeorm migration:revert --dataSource src/data-source.ts",
     "migration:create": "typeorm migration:create src/migrations/"
   },
   "dependencies": {
@@ -62,7 +62,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.14.1",
+    "@types/node": "^22.15.31",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.2",
     "@typescript-eslint/eslint-plugin": "^8.29.1",
