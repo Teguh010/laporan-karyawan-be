@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { LaporanModule } from './laporan/laporan.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -11,7 +11,7 @@ import { AppDataSource } from './data-source';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRoot(AppDataSource),
+    TypeOrmModule.forRoot(AppDataSource.options),
     LaporanModule,
     UsersModule,
     AuthModule,
