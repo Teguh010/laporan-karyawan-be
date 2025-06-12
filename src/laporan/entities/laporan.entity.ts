@@ -12,13 +12,55 @@ export class Laporan {
   id: string;
 
   @Column()
-  namaBarang: string;
+  requestId: string;
 
   @Column()
-  nomorBarang: string;
+  title: string;
 
   @Column()
-  noSurat: string;
+  requestName: string;
+
+  @Column()
+  companyCode: string;
+
+  @Column()
+  requestObjective: string;
+
+  @Column()
+  requestBackground: string;
+
+  @Column()
+  poType: string;
+
+  @Column()
+  assetType: string;
+
+  @Column()
+  totalAmountIdr: number;
+
+  @Column()
+  totalAmountOriginalCurrency: number;
+
+  @Column()
+  remarks: string;
+
+  @Column()
+  assignTo: string;
+
+  @Column()
+  requestDate: Date;
+
+  @Column()
+  department: string;
+
+  @Column()
+  buyer: string;
+
+  @Column()
+  deliveryDate: Date;
+
+  @Column()
+  currency: string;
 
   @Column('json')
   needApproveFiles: {
@@ -40,7 +82,7 @@ export class Laporan {
 
   @Column({ default: false })
   vendorApproved: boolean;
-
+  
   @CreateDateColumn()
   createdAt: Date;
 

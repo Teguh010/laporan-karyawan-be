@@ -115,11 +115,19 @@ export class LaporanService {
     const status = isSubmitted ? 'submitted' : 'entry';
     console.log(`Setting laporan status to: ${status}`);
 
+    // Convert dates from DTO
+    const requestDate = new Date(createLaporanDto.requestDate);
+    const deliveryDate = new Date(createLaporanDto.deliveryDate);
+
     const laporan = this.laporanRepository.create({
       ...createLaporanDto,
       needApproveFiles,
       noNeedApproveFiles,
       status: status,
+      requestDate,
+      deliveryDate,
+      emApproved: false,
+      vendorApproved: false
     });
 
     const savedLaporan = await this.laporanRepository.save(laporan);
@@ -180,7 +188,19 @@ export class LaporanService {
     }
 
     // Update basic fields
-    Object.assign(laporan, updateLaporanDto);
+    if (updateLaporanDto.requestDate) {
+      laporan.requestDate = new Date(updateLaporanDto.requestDate);
+    }
+    if (updateLaporanDto.deliveryDate) {
+      laporan.deliveryDate = new Date(updateLaporanDto.deliveryDate);
+    }
+
+    // Only update fields that are present in the DTO
+    Object.assign(laporan, {
+      ...updateLaporanDto,
+      requestDate: laporan.requestDate,
+      deliveryDate: laporan.deliveryDate
+    });
 
     // Update files if provided
     if (files) {
