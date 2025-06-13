@@ -1,13 +1,19 @@
-import { IsString, IsNotEmpty, IsNumber, IsDate, IsOptional, IsEnum, IsBoolean, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 
 export enum PoType {
   PURCHASE_ORDER = 'purchase_order',
-  DIRECT_PURCHASE = 'direct_purchase'
+  DIRECT_PURCHASE = 'direct_purchase',
 }
 
 export enum AssetType {
   FIXED_ASSET = 'fixed_asset',
-  CONSUMABLE = 'consumable'
+  CONSUMABLE = 'consumable',
 }
 
 export class CreateLaporanDto {
@@ -43,13 +49,13 @@ export class CreateLaporanDto {
   @IsNotEmpty()
   assetType: AssetType;
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  totalAmountIdr: number;
+  totalAmountIdr: string;
 
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  totalAmountOriginalCurrency: number;
+  totalAmountOriginalCurrency: string;
 
   @IsString()
   @IsOptional()
@@ -59,9 +65,9 @@ export class CreateLaporanDto {
   @IsNotEmpty()
   assignTo: string;
 
-  @IsDate()
+  @IsString()
   @IsNotEmpty()
-  requestDate: Date;
+  requestDate: string;
 
   @IsString()
   @IsNotEmpty()
@@ -71,15 +77,14 @@ export class CreateLaporanDto {
   @IsNotEmpty()
   buyer: string;
 
-  @IsDate()
+  @IsString()
   @IsNotEmpty()
-  deliveryDate: Date;
+  deliveryDate: string;
 
   @IsString()
   @IsNotEmpty()
   currency: string;
 
-  @IsString()
   @IsOptional()
   status: string;
 
@@ -91,13 +96,13 @@ export class CreateLaporanDto {
   @IsOptional()
   vendorApproved: boolean;
 
-  @IsArray()
+  @IsOptional()
   needApproveFiles?: Array<{
     name: string;
     path: string;
   }>;
 
-  @IsArray()
+  @IsOptional()
   noNeedApproveFiles?: Array<{
     name: string;
     path: string;

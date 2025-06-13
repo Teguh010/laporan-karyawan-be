@@ -85,9 +85,13 @@ export class LaporanService {
     );
   }
 
-  async create(createLaporanDto: CreateLaporanDto, files: any, isSubmitted: boolean = false) {
+  async create(
+    createLaporanDto: CreateLaporanDto,
+    files: any,
+    isSubmitted: boolean = false,
+  ) {
     console.log(`Creating laporan with isSubmitted: ${isSubmitted}`);
-    
+
     const needApproveFilesPromises =
       files.needApproveFiles?.map(async (file) => {
         const path = await this.uploadFileToS3(file, 'need-approve');
@@ -121,18 +125,24 @@ export class LaporanService {
 
     const laporan = this.laporanRepository.create({
       ...createLaporanDto,
+      totalAmountIdr: Number(createLaporanDto.totalAmountIdr),
+      totalAmountOriginalCurrency: Number(
+        createLaporanDto.totalAmountOriginalCurrency,
+      ),
       needApproveFiles,
       noNeedApproveFiles,
       status: status,
       requestDate,
       deliveryDate,
       emApproved: false,
-      vendorApproved: false
+      vendorApproved: false,
     });
 
     const savedLaporan = await this.laporanRepository.save(laporan);
-    console.log(`Laporan created with ID: ${savedLaporan.id}, status: ${savedLaporan.status}`);
-    
+    console.log(
+      `Laporan created with ID: ${savedLaporan.id}, status: ${savedLaporan.status}`,
+    );
+
     return savedLaporan;
   }
 
@@ -199,7 +209,7 @@ export class LaporanService {
     Object.assign(laporan, {
       ...updateLaporanDto,
       requestDate: laporan.requestDate,
-      deliveryDate: laporan.deliveryDate
+      deliveryDate: laporan.deliveryDate,
     });
 
     // Update files if provided
@@ -407,12 +417,12 @@ export class LaporanService {
     }
 
     console.log(`Submitting laporan ${id}, current status: ${laporan.status}`);
-  
+
     laporan.status = 'submitted';
     const savedLaporan = await this.laporanRepository.save(laporan);
-  
+
     console.log(`Laporan ${id} submitted, new status: ${savedLaporan.status}`);
-  
+
     return savedLaporan;
   }
 }
