@@ -1,41 +1,53 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  HttpException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Laporan } from './entities/laporan.entity';
+import { Laporan, FileData, LaporanStatus } from './entities/laporan.entity';
 import { CreateLaporanDto } from './dto/create-laporan.dto';
 import { UpdateLaporanDto } from './dto/update-laporan.dto';
+import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
+  GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
-  GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { ConfigService } from '@nestjs/config';
-import { v4 as uuidv4 } from 'uuid';
+
 @Injectable()
 export class LaporanService {
-  private s3Client: S3Client;
-  private baseUrl: string;
+  private readonly logger = new Logger(LaporanService.name);
   private bucket: string;
+  private baseUrl: string;
+  private s3Client: S3Client;
 
   constructor(
     @InjectRepository(Laporan)
     private laporanRepository: Repository<Laporan>,
     private configService: ConfigService,
   ) {
+    this.bucket = this.configService.get<string>('WASABI_BUCKET') || '';
+    this.baseUrl = `https://${this.bucket}.s3.wasabisys.com`;
+
     const region = this.configService.get<string>('WASABI_REGION');
     const endpoint = this.configService.get<string>('WASABI_ENDPOINT');
-    const bucket = this.configService.get<string>('WASABI_BUCKET');
     const accessKeyId = this.configService.get<string>('WASABI_ACCESS_KEY');
     const secretAccessKey = this.configService.get<string>('WASABI_SECRET_KEY');
 
-    if (!accessKeyId || !secretAccessKey || !bucket || !region || !endpoint) {
+    if (
+      !accessKeyId ||
+      !secretAccessKey ||
+      !this.bucket ||
+      !region ||
+      !endpoint
+    ) {
       throw new Error('Wasabi credentials are not properly configured');
     }
-
-    this.bucket = bucket;
-    this.baseUrl = `https://${this.bucket}.s3.wasabisys.com`;
 
     this.s3Client = new S3Client({
       region: region,
@@ -84,6 +96,24 @@ export class LaporanService {
     );
   }
 
+  private async uploadFiles(files: Express.Multer.File[]): Promise<FileData[]> {
+    const uploadPromises = files.map(async (file) => {
+      const key = await this.uploadFileToS3(file, 'uploads');
+      return {
+        name: file.originalname || 'unnamed-file',
+        path: key,
+        size: file.size,
+        mimetype: file.mimetype,
+        originalname: file.originalname || 'unnamed-file',
+        filename: file.filename || file.originalname || 'unnamed-file',
+        fieldname: file.fieldname || 'file',
+        encoding: file.encoding || '7bit',
+        destination: 'uploads',
+      };
+    });
+    return await Promise.all(uploadPromises);
+  }
+
   async create(
     createLaporanDto: CreateLaporanDto,
     files: {
@@ -117,8 +147,8 @@ export class LaporanService {
       Promise.all(noNeedApproveFilesPromises),
     ]);
 
-    // Set status berdasarkan isSubmitted
-    const status = isSubmitted ? 'submitted' : 'entry';
+    // Set status based on isSubmitted
+    const status = isSubmitted ? LaporanStatus.SUBMITTED : LaporanStatus.ENTRY;
     console.log(`Setting laporan status to: ${status}`);
 
     // Convert dates from DTO
@@ -133,7 +163,7 @@ export class LaporanService {
       ),
       needApproveFiles,
       noNeedApproveFiles,
-      status: status,
+      status,
       requestDate,
       deliveryDate,
       emApproved: false,
@@ -214,132 +244,169 @@ export class LaporanService {
       laporan.deliveryDate = new Date(updateLaporanDto.deliveryDate);
     }
 
-    // Only update fields that are present in the DTO
+    // Extract status to check for resubmission
+    const { status: newStatus, ...updateData } = updateLaporanDto;
+
+    // Update all fields except status and resubmissionCount
     Object.assign(laporan, {
-      ...updateLaporanDto,
+      ...updateData,
       requestDate: laporan.requestDate,
       deliveryDate: laporan.deliveryDate,
+      // Explicitly preserve the status and resubmissionCount
+      // These should only be updated through specific methods (approve, reject, resubmit)
+      status: laporan.status,
+      resubmissionCount: laporan.resubmissionCount,
     });
 
-    // Update files if provided
-    if (files) {
-      if (files.needApproveFiles) {
-        // Delete old files
-        await Promise.all(
-          laporan.needApproveFiles.map((file) =>
-            this.deleteFileFromS3(file.path),
-          ),
-        );
-
-        // Upload new files
-        laporan.needApproveFiles = await Promise.all(
-          files.needApproveFiles.map(async (file) => {
-            const path = await this.uploadFileToS3(file, 'need-approve');
-            return {
-              name: file.originalname,
-              path: path,
-            };
-          }),
-        );
-      }
-
-      if (files.noNeedApproveFiles) {
-        // Delete old files
-        await Promise.all(
-          laporan.noNeedApproveFiles.map((file) =>
-            this.deleteFileFromS3(file.path),
-          ),
-        );
-
-        // Upload new files
-        laporan.noNeedApproveFiles = await Promise.all(
-          files.noNeedApproveFiles.map(async (file) => {
-            const path = await this.uploadFileToS3(file, 'no-need-approve');
-            return {
-              name: file.originalname,
-              path: path,
-            };
-          }),
-        );
-      }
+    // Handle resubmission if needed
+    if (
+      newStatus === LaporanStatus.RESUBMITTED &&
+      laporan.status === LaporanStatus.REJECTED
+    ) {
+      laporan.status = LaporanStatus.RESUBMITTED;
+      laporan.resubmissionCount = (laporan.resubmissionCount || 0) + 1;
+      laporan.rejectReason = null;
+      laporan.rejectedAt = null;
+      laporan.rejectedBy = null;
     }
 
-    return this.laporanRepository.save(laporan);
-  }
-
-  async remove(id: string) {
-    const laporan = await this.laporanRepository.findOneBy({ id });
-    if (!laporan) {
-      throw new NotFoundException(`Laporan with ID ${id} not found`);
+    // Upload need approve files if they exist
+    if (files?.needApproveFiles?.length) {
+      const uploadedFiles = await this.uploadFiles(files.needApproveFiles);
+      laporan.needApproveFiles = [
+        ...laporan.needApproveFiles,
+        ...uploadedFiles,
+      ];
     }
 
-    // Delete files from S3
-    const allFiles = [
-      ...(laporan.needApproveFiles || []),
-      ...(laporan.noNeedApproveFiles || []),
-    ];
+    // Upload no need approve files if they exist
+    if (files?.noNeedApproveFiles?.length) {
+      const uploadedFiles = await this.uploadFiles(files.noNeedApproveFiles);
+      laporan.noNeedApproveFiles = [
+        ...laporan.noNeedApproveFiles,
+        ...uploadedFiles,
+      ];
+    }
 
-    await Promise.all(allFiles.map((file) => this.deleteFileFromS3(file.path)));
-
-    await this.laporanRepository.remove(laporan);
-    return { message: `Laporan with ID ${id} has been deleted` };
+    const savedLaporan = await this.laporanRepository.save(laporan);
+    console.log(`Laporan ${id} updated, new status: ${savedLaporan.status}`);
+    return savedLaporan;
   }
 
-  // Tambahkan method untuk approval
-  async approveLaporan(
+  async resubmitLaporan(
     id: string,
-    roleField: 'emApproved' | 'userApproved',
+    updateData?: UpdateLaporanDto & {
+      needApproveFiles?: Express.Multer.File[];
+      noNeedApproveFiles?: Express.Multer.File[];
+    },
   ): Promise<Laporan> {
-    const laporan = await this.laporanRepository.findOne({ where: { id } });
-    if (!laporan) {
-      throw new NotFoundException(`Laporan with id ${id} not found`);
+    const { needApproveFiles, noNeedApproveFiles, ...updateFields } =
+      updateData || {};
+
+    // Start a transaction
+    const queryRunner =
+      this.laporanRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Get the existing laporan
+      const laporan = await queryRunner.manager.findOne(Laporan, {
+        where: { id },
+      });
+
+      if (!laporan) {
+        throw new NotFoundException(`Laporan with ID ${id} not found`);
+      }
+
+      // Store previous status before updating
+      const previousStatus = laporan.status;
+
+      // Update laporan fields
+      Object.assign(laporan, updateFields);
+
+      // Handle file uploads
+      if (needApproveFiles?.length) {
+        const uploadedFiles = await this.uploadFiles(needApproveFiles);
+        laporan.needApproveFiles = [
+          ...(laporan.needApproveFiles || []),
+          ...uploadedFiles,
+        ];
+      }
+
+      if (noNeedApproveFiles?.length) {
+        const uploadedFiles = await this.uploadFiles(noNeedApproveFiles);
+        laporan.noNeedApproveFiles = [
+          ...(laporan.noNeedApproveFiles || []),
+          ...uploadedFiles,
+        ];
+      }
+
+      // Set status to resubmitted
+      laporan.status = LaporanStatus.RESUBMITTED;
+
+      // If previous status was rejected, increment resubmission count
+      if (previousStatus === LaporanStatus.REJECTED) {
+        laporan.resubmissionCount = (laporan.resubmissionCount || 0) + 1;
+      }
+
+      // Reset approval and rejection fields
+      laporan.emApproved = false;
+      laporan.vendorApproved = false;
+      laporan.userApproved = false;
+      laporan.rejectedBy = null;
+      laporan.rejectedAt = null;
+      laporan.rejectReason = null;
+
+      // Save the updated laporan
+      const savedLaporan = await queryRunner.manager.save(laporan);
+
+      // Log the status update
+      this.logger.log(
+        `Laporan ${id} status updated from ${previousStatus} to ${savedLaporan.status}`,
+      );
+
+      // Verify the status was actually updated
+      if (savedLaporan.status !== LaporanStatus.RESUBMITTED) {
+        this.logger.warn(
+          `Expected status to be RESUBMITTED but got ${savedLaporan.status} for laporan ${id}`,
+        );
+      }
+
+      // Commit the transaction
+      await queryRunner.commitTransaction();
+
+      this.logger.log(
+        `Successfully resubmitted laporan ${id} with status: ${savedLaporan.status}`,
+      );
+
+      return savedLaporan;
+    } catch (error) {
+      // Rollback the transaction on error
+      await queryRunner.rollbackTransaction();
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+
+      this.logger.error(
+        `Error resubmitting laporan ${id}: ${errorMessage}`,
+        stackTrace,
+      );
+
+      // Re-throw with more context if it's not already an HTTP exception
+      if (!(error instanceof HttpException)) {
+        throw new InternalServerErrorException({
+          statusCode: 500,
+          message: 'Failed to resubmit laporan',
+          error: errorMessage,
+        });
+      }
+
+      throw error;
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
     }
-
-    // Update the appropriate approval field
-    laporan[roleField] = true;
-
-    // Update status only if both EM and USER have approved
-    if (laporan.emApproved && laporan.userApproved) {
-      laporan.status = 'approved';
-    }
-
-    return await this.laporanRepository.save(laporan);
-  }
-
-  // Method to reject a laporan
-  async rejectLaporan(id: string, reason?: string, rejectedBy?: string): Promise<Laporan> {
-    const laporan = await this.laporanRepository.findOne({ where: { id } });
-    if (!laporan) {
-      throw new NotFoundException(`Laporan with id ${id} not found`);
-    }
-
-    laporan.emApproved = false;
-    laporan.userApproved = false;
-    laporan.status = 'rejected';
-    laporan.rejectReason = reason || null;
-    laporan.rejectedAt = new Date();
-    laporan.rejectedBy = rejectedBy || null;
-
-    return await this.laporanRepository.save(laporan);
-  }
-
-  async resubmitLaporan(id: string): Promise<Laporan> {
-    const laporan = await this.laporanRepository.findOne({ where: { id } });
-    if (!laporan) {
-      throw new NotFoundException(`Laporan with id ${id} not found`);
-    }
-
-    if (laporan.status !== 'rejected') {
-      throw new BadRequestException('Hanya laporan yang ditolak yang bisa dikirim ulang');
-    }
-
-    // Reset status ke entry untuk memulai ulang proses approval
-    laporan.status = 'entry';
-    laporan.rejectReason = null;
-    laporan.rejectedAt = null;
-    laporan.rejectedBy = null;
-
-    return await this.laporanRepository.save(laporan);
   }
 
   async filterLaporan(
@@ -393,32 +460,86 @@ export class LaporanService {
     );
   }
 
-  // Tambahkan method untuk submit laporan
+  // Method untuk submit laporan
   async submitLaporan(id: string): Promise<Laporan> {
     const laporan = await this.laporanRepository.findOne({ where: { id } });
     if (!laporan) {
       throw new NotFoundException(`Laporan with ID ${id} not found`);
     }
 
-    // Check if both EM and USER have approved
-    if (!laporan.emApproved || !laporan.userApproved) {
+    console.log(`Submitting laporan ${id}, current status: ${laporan.status}`);
+
+    // Handle different submission scenarios
+    if (laporan.status === LaporanStatus.RESUBMITTED) {
+      // For resubmitted laporan, just update the status to 'submitted' if both approvals are done
+      if (!laporan.emApproved || !laporan.userApproved) {
+        throw new Error(
+          'Laporan yang diresubmit harus disetujui oleh EM dan USER sebelum disubmit',
+        );
+      }
+      laporan.status = LaporanStatus.SUBMITTED;
+    } else if (laporan.status === LaporanStatus.ENTRY) {
+      // For new submissions
+      laporan.status = LaporanStatus.SUBMITTED;
+    } else {
       throw new Error(
-        'Laporan must be approved by both EM and USER before submission',
+        `Laporan tidak dapat disubmit dengan status ${laporan.status}`,
       );
     }
 
-    // Check if laporan is already submitted
-    if (laporan.status === 'submitted') {
-      throw new Error('Laporan is already submitted');
-    }
-
-    console.log(`Submitting laporan ${id}, current status: ${laporan.status}`);
-
-    laporan.status = 'submitted';
     const savedLaporan = await this.laporanRepository.save(laporan);
-
     console.log(`Laporan ${id} submitted, new status: ${savedLaporan.status}`);
 
     return savedLaporan;
+  }
+
+  async approveLaporan(id: string, role: string): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with ID ${id} not found`);
+    }
+
+    if (role === 'EM') {
+      laporan.emApproved = true;
+    } else if (role === 'USER') {
+      laporan.userApproved = true;
+    }
+
+    // If both EM and USER have approved, update status to APPROVED
+    if (laporan.emApproved && laporan.userApproved) {
+      laporan.status = LaporanStatus.APPROVED;
+    }
+
+    return this.laporanRepository.save(laporan);
+  }
+
+  async rejectLaporan(
+    id: string,
+    reason: string,
+    userId: string,
+  ): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with ID ${id} not found`);
+    }
+
+    laporan.status = LaporanStatus.REJECTED;
+    laporan.rejectReason = reason;
+    laporan.rejectedBy = userId;
+    laporan.rejectedAt = new Date();
+    laporan.emApproved = false;
+    laporan.userApproved = false;
+
+    return this.laporanRepository.save(laporan);
+  }
+
+  async remove(id: string): Promise<{ message: string }> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with ID ${id} not found`);
+    }
+
+    await this.laporanRepository.remove(laporan);
+    return { message: 'Laporan berhasil dihapus' };
   }
 }

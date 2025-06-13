@@ -6,6 +6,27 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export enum LaporanStatus {
+  DRAFT = 'draft',
+  SUBMITTED = 'submitted',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  RESUBMITTED = 'resubmitted',
+  ENTRY = 'entry'
+}
+
+export interface FileData {
+  name: string;
+  path: string;
+  size: number;
+  mimetype: string;
+  originalname: string;
+  filename: string;
+  fieldname: string;
+  encoding: string;
+  destination: string;
+}
+
 @Entity()
 export class Laporan {
   @PrimaryGeneratedColumn('uuid')
@@ -35,6 +56,12 @@ export class Laporan {
   @Column({ type: 'varchar', nullable: true })
   assetType: string | null;
 
+  @Column({ type: 'json', nullable: true })
+  needApproveFiles: FileData[] = [];
+
+  @Column({ type: 'json', nullable: true })
+  noNeedApproveFiles: FileData[] = [];
+
   @Column({ type: 'integer', nullable: true })
   totalAmountIdr: number | null;
 
@@ -62,20 +89,14 @@ export class Laporan {
   @Column({ type: 'varchar', nullable: true })
   currency: string | null;
 
-  @Column('json')
-  needApproveFiles: {
-    name: string;
-    path: string;
-  }[];
 
-  @Column('json')
-  noNeedApproveFiles: {
-    name: string;
-    path: string;
-  }[];
 
-  @Column({ default: 'entry' })
-  status: string;
+  @Column({ 
+    type: 'enum',
+    enum: LaporanStatus,
+    default: LaporanStatus.ENTRY 
+  })
+  status: LaporanStatus;
 
   @Column({ default: false })
   emApproved: boolean;
@@ -100,4 +121,7 @@ export class Laporan {
 
   @Column({ type: 'varchar', nullable: true })
   rejectedBy: string | null;
+
+  @Column({ name: 'resubmission_count', type: 'integer', default: 0 })
+  resubmissionCount: number;
 }

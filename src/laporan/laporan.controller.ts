@@ -11,8 +11,11 @@ import {
   UseGuards,
   Req,
   Query,
+  HttpException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { Laporan } from './entities/laporan.entity';
 import { LaporanService } from './laporan.service';
 import { CreateLaporanDto } from './dto/create-laporan.dto';
 import { UpdateLaporanDto } from './dto/update-laporan.dto';
@@ -145,6 +148,10 @@ export class LaporanController {
       console.log(`Rejection request received for laporan ${id}`);
       console.log(`Rejection reason:`, body.reason);
 
+      if (!body.reason) {
+        throw new Error('Alasan penolakan harus diisi');
+      }
+
       const result = await this.laporanService.rejectLaporan(
         id,
         body.reason,
@@ -159,14 +166,94 @@ export class LaporanController {
 
   @Put(':id/resubmit')
   @Roles(UserRole.VENDOR)
-  async resubmitLaporan(@Param('id') id: string) {
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'needApproveFiles', maxCount: 10 },
+      { name: 'noNeedApproveFiles', maxCount: 10 },
+    ]),
+  )
+  async resubmitLaporan(
+    @Param('id') id: string,
+    @Body() updateData: UpdateLaporanDto,
+    @UploadedFiles()
+    files?: {
+      needApproveFiles?: Express.Multer.File[];
+      noNeedApproveFiles?: Express.Multer.File[];
+    },
+  ): Promise<Laporan> {
     try {
-      console.log(`Resubmit request received for laporan ${id}`);
-      const result = await this.laporanService.resubmitLaporan(id);
-      return result;
-    } catch (error) {
+      // Log the resubmit request
+      const logData = {
+        updateData,
+        files: files
+          ? {
+              needApproveFiles: files.needApproveFiles?.map((f) => ({
+                originalname: f.originalname,
+                size: f.size,
+                mimetype: f.mimetype,
+              })),
+              noNeedApproveFiles: files.noNeedApproveFiles?.map((f) => ({
+                originalname: f.originalname,
+                size: f.size,
+                mimetype: f.mimetype,
+              })),
+            }
+          : 'No files',
+      };
+      console.log(`Resubmit request received for laporan ${id}`, logData);
+
+      // Transform uploaded files to match the expected format
+      const dataToUpdate: any = { ...updateData };
+
+      if (files) {
+        if (files.needApproveFiles) {
+          dataToUpdate.needApproveFiles = files.needApproveFiles.map(
+            (file) =>
+              ({
+                name: file.originalname,
+                path: file.path || file.filename || '',
+                size: file.size,
+                mimetype: file.mimetype,
+                originalname: file.originalname,
+                filename: file.filename,
+                fieldname: file.fieldname,
+                encoding: file.encoding,
+                destination: file.destination,
+              }) as any,
+          );
+        }
+        if (files.noNeedApproveFiles) {
+          dataToUpdate.noNeedApproveFiles = files.noNeedApproveFiles.map(
+            (file) =>
+              ({
+                name: file.originalname,
+                path: file.path || file.filename || '',
+                size: file.size,
+                mimetype: file.mimetype,
+                originalname: file.originalname,
+                filename: file.filename,
+                fieldname: file.fieldname,
+                encoding: file.encoding,
+                destination: file.destination,
+              }) as any,
+          );
+        }
+      }
+
+      // Call the service with the combined data
+      return await this.laporanService.resubmitLaporan(id, dataToUpdate);
+    } catch (error: unknown) {
       console.error('Error resubmitting laporan:', error);
-      throw error;
+      // Re-throw the error to ensure it's properly handled by NestJS
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        message: 'Failed to resubmit laporan',
+        error: errorMessage,
+      });
     }
   }
 

@@ -100,11 +100,25 @@ export class CreateLaporanDto {
   needApproveFiles?: Array<{
     name: string;
     path: string;
+    size?: number;
+    mimetype?: string;
+    originalname?: string;
+    filename?: string;
+    fieldname?: string;
+    encoding?: string;
+    destination?: string;
   }>;
 
   @IsOptional()
   noNeedApproveFiles?: Array<{
     name: string;
     path: string;
+    size?: number;
+    mimetype?: string;
+    originalname?: string;
+    filename?: string;
+    fieldname?: string;
+    encoding?: string;
+    destination?: string;
   }>;
 }

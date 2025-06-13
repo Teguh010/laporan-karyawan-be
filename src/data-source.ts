@@ -8,9 +8,11 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'laporan_karyawan',
   entities: [__dirname + '/**/*.entity{.ts,.js}'],
-  synchronize: true,
+  migrations: [__dirname + '/migrations/*{.ts,.js}'],
+  synchronize: false, // Disable synchronize when using migrations
   ssl: false,
   extra: {
     trustServerCertificate: true,
   },
+  migrationsRun: true, // Automatically run migrations on application start
 });
