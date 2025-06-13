@@ -16,6 +16,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { LaporanService } from './laporan.service';
 import { CreateLaporanDto } from './dto/create-laporan.dto';
 import { UpdateLaporanDto } from './dto/update-laporan.dto';
+import { ApproveLaporanDto } from './dto/approve-laporan.dto';
 import { multerConfig } from '../config/multer.config';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -84,9 +85,9 @@ export class LaporanController {
   }
 
   @Get('status/:status')
-  @Roles(UserRole.VENDOR, UserRole.EM, UserRole.USER)
-  getLaporanByStatus(@Param('status') status: string) {
-    return this.laporanService.findByStatus(status);
+  @Roles(UserRole.EM, UserRole.USER, UserRole.VENDOR)
+  async getLaporanByStatus(@Param('status') status: string) {
+    return this.laporanService.filterLaporan(status);
   }
 
   // Endpoint dengan parameter dinamis harus didefinisikan SETELAH endpoint dengan path spesifik
@@ -123,19 +124,50 @@ export class LaporanController {
   @Roles(UserRole.EM, UserRole.USER)
   async approveLaporan(
     @Param('id') id: string,
+    @Body() approveDto: ApproveLaporanDto,
     @Req() request: RequestWithUser,
   ) {
     console.log(`Approval request received for laporan ${id}`);
     console.log(`User data:`, request.user);
-    console.log(`User role: ${request.user.role}`);
+    console.log(`Approval role: ${approveDto.role}`);
 
-    return this.laporanService.approveLaporan(id, request.user.role);
+    return this.laporanService.approveLaporan(id, approveDto.role);
   }
 
   @Put(':id/reject')
   @Roles(UserRole.EM, UserRole.USER)
-  async rejectLaporan(@Param('id') id: string) {
-    return this.laporanService.rejectLaporan(id);
+  async rejectLaporan(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Req() request: RequestWithUser,
+  ) {
+    try {
+      console.log(`Rejection request received for laporan ${id}`);
+      console.log(`Rejection reason:`, body.reason);
+
+      const result = await this.laporanService.rejectLaporan(
+        id,
+        body.reason,
+        request.user.id, // Using id instead of userId to match the RequestWithUser interface
+      );
+      return result;
+    } catch (error) {
+      console.error('Error rejecting laporan:', error);
+      throw error;
+    }
+  }
+
+  @Put(':id/resubmit')
+  @Roles(UserRole.VENDOR)
+  async resubmitLaporan(@Param('id') id: string) {
+    try {
+      console.log(`Resubmit request received for laporan ${id}`);
+      const result = await this.laporanService.resubmitLaporan(id);
+      return result;
+    } catch (error) {
+      console.error('Error resubmitting laporan:', error);
+      throw error;
+    }
   }
 
   @Delete(':id')

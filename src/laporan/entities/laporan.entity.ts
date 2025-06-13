@@ -83,9 +83,21 @@ export class Laporan {
   @Column({ default: false })
   vendorApproved: boolean;
 
+  @Column({ default: false })
+  userApproved: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'text', nullable: true })
+  rejectReason: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  rejectedAt: Date | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  rejectedBy: string | null;
 }

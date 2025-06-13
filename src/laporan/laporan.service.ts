@@ -1,10 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Laporan } from './entities/laporan.entity';
 import { CreateLaporanDto } from './dto/create-laporan.dto';
 import { UpdateLaporanDto } from './dto/update-laporan.dto';
-import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
@@ -12,8 +11,8 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { UserRole } from '../auth/enums/role.enum';
-
+import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class LaporanService {
   private s3Client: S3Client;
@@ -87,7 +86,10 @@ export class LaporanService {
 
   async create(
     createLaporanDto: CreateLaporanDto,
-    files: any,
+    files: {
+      needApproveFiles?: Express.Multer.File[];
+      noNeedApproveFiles?: Express.Multer.File[];
+    },
     isSubmitted: boolean = false,
   ) {
     console.log(`Creating laporan with isSubmitted: ${isSubmitted}`);
@@ -191,7 +193,14 @@ export class LaporanService {
     };
   }
 
-  async update(id: string, updateLaporanDto: UpdateLaporanDto, files?: any) {
+  async update(
+    id: string,
+    updateLaporanDto: UpdateLaporanDto,
+    files?: {
+      needApproveFiles?: Express.Multer.File[];
+      noNeedApproveFiles?: Express.Multer.File[];
+    },
+  ) {
     const laporan = await this.laporanRepository.findOneBy({ id });
     if (!laporan) {
       throw new NotFoundException(`Laporan with ID ${id} not found`);
@@ -277,143 +286,130 @@ export class LaporanService {
   }
 
   // Tambahkan method untuk approval
-  async approveLaporan(id: string, role: string) {
-    const laporan = await this.laporanRepository.findOneBy({ id });
+  async approveLaporan(
+    id: string,
+    roleField: 'emApproved' | 'userApproved',
+  ): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
     if (!laporan) {
-      throw new NotFoundException(`Laporan with ID ${id} not found`);
+      throw new NotFoundException(`Laporan with id ${id} not found`);
     }
 
-    console.log(`Before approval - Laporan ${id}:`, {
-      status: laporan.status,
-      emApproved: laporan.emApproved,
-      vendorApproved: laporan.vendorApproved,
-    });
+    // Update the appropriate approval field
+    laporan[roleField] = true;
 
-    // Update approval berdasarkan role
-    if (role === UserRole.EM) {
-      laporan.emApproved = true;
-      console.log(`EM approved laporan ${id}`);
-    } else if (role === UserRole.USER) {
-      laporan.vendorApproved = true;
-      console.log(`USER approved laporan ${id}`);
-    } else {
-      console.log(`Unknown role: ${role}`);
-    }
-
-    // Update status jika kedua role sudah approve
-    if (laporan.emApproved && laporan.vendorApproved) {
+    // Update status only if both EM and USER have approved
+    if (laporan.emApproved && laporan.userApproved) {
       laporan.status = 'approved';
-      console.log(`Laporan ${id} fully approved, status updated to 'approved'`);
-    } else {
-      console.log(
-        `Laporan ${id} not fully approved yet. emApproved: ${laporan.emApproved}, vendorApproved: ${laporan.vendorApproved}`,
-      );
     }
 
-    const savedLaporan = await this.laporanRepository.save(laporan);
-
-    console.log(`After approval - Laporan ${id}:`, {
-      status: savedLaporan.status,
-      emApproved: savedLaporan.emApproved,
-      vendorApproved: savedLaporan.vendorApproved,
-    });
-
-    return savedLaporan;
+    return await this.laporanRepository.save(laporan);
   }
 
-  async rejectLaporan(id: string) {
-    const laporan = await this.laporanRepository.findOneBy({ id });
+  // Method to reject a laporan
+  async rejectLaporan(id: string, reason?: string, rejectedBy?: string): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
     if (!laporan) {
-      throw new NotFoundException(`Laporan with ID ${id} not found`);
+      throw new NotFoundException(`Laporan with id ${id} not found`);
     }
 
-    laporan.status = 'not_approved';
-    return this.laporanRepository.save(laporan);
+    laporan.emApproved = false;
+    laporan.userApproved = false;
+    laporan.status = 'rejected';
+    laporan.rejectReason = reason || null;
+    laporan.rejectedAt = new Date();
+    laporan.rejectedBy = rejectedBy || null;
+
+    return await this.laporanRepository.save(laporan);
   }
 
-  async findByStatus(status: string) {
-    const laporans = await this.laporanRepository.find({
-      where: { status },
-    });
+  async resubmitLaporan(id: string): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with id ${id} not found`);
+    }
 
-    return await Promise.all(
-      laporans.map(async (laporan) => ({
-        ...laporan,
-        needApproveFiles: await Promise.all(
-          laporan.needApproveFiles.map(async (file) => ({
-            ...file,
-            url: await this.getSignedFileUrl(file.path),
-          })),
-        ),
-        noNeedApproveFiles: await Promise.all(
-          laporan.noNeedApproveFiles.map(async (file) => ({
-            ...file,
-            url: await this.getSignedFileUrl(file.path),
-          })),
-        ),
-      })),
-    );
+    if (laporan.status !== 'rejected') {
+      throw new BadRequestException('Hanya laporan yang ditolak yang bisa dikirim ulang');
+    }
+
+    // Reset status ke entry untuk memulai ulang proses approval
+    laporan.status = 'entry';
+    laporan.rejectReason = null;
+    laporan.rejectedAt = null;
+    laporan.rejectedBy = null;
+
+    return await this.laporanRepository.save(laporan);
   }
 
-  async filterLaporan(status?: string, startDate?: string, endDate?: string) {
-    // Build query conditions
-    const whereConditions: any = {};
+  async filterLaporan(
+    status?: string,
+    startDate?: string,
+    endDate?: string,
+  ): Promise<Laporan[]> {
+    const query = this.laporanRepository.createQueryBuilder('laporan');
 
     if (status) {
-      whereConditions.status = status;
+      query.andWhere('laporan.status = :status', { status });
     }
 
-    if (startDate || endDate) {
-      whereConditions.createdAt = {};
-
-      if (startDate) {
-        whereConditions.createdAt = {
-          ...whereConditions.createdAt,
-          gte: new Date(startDate),
-        };
-      }
-
-      if (endDate) {
-        whereConditions.createdAt = {
-          ...whereConditions.createdAt,
-          lte: new Date(endDate + 'T23:59:59.999Z'), // End of the day
-        };
-      }
+    if (startDate) {
+      const start = new Date(startDate);
+      query.andWhere('laporan.createdAt >= :startDate', { startDate: start });
     }
 
-    console.log('Filter conditions:', whereConditions);
+    if (endDate) {
+      const end = new Date(`${endDate}T23:59:59.999Z`);
+      query.andWhere('laporan.createdAt <= :endDate', { endDate: end });
+    }
 
-    // Execute query
-    const laporans = await this.laporanRepository.find({
-      where: whereConditions,
-      order: { createdAt: 'DESC' },
-    });
+    query.orderBy('laporan.createdAt', 'DESC');
+
+    const laporans = await query.getMany();
 
     // Add signed URLs for files
     return await Promise.all(
-      laporans.map(async (laporan) => ({
-        ...laporan,
-        needApproveFiles: await Promise.all(
+      laporans.map(async (laporan) => {
+        const needApproveFiles = await Promise.all(
           laporan.needApproveFiles.map(async (file) => ({
             ...file,
             url: await this.getSignedFileUrl(file.path),
           })),
-        ),
-        noNeedApproveFiles: await Promise.all(
+        );
+
+        const noNeedApproveFiles = await Promise.all(
           laporan.noNeedApproveFiles.map(async (file) => ({
             ...file,
             url: await this.getSignedFileUrl(file.path),
           })),
-        ),
-      })),
+        );
+
+        return {
+          ...laporan,
+          needApproveFiles,
+          noNeedApproveFiles,
+        };
+      }),
     );
   }
 
   // Tambahkan method untuk submit laporan
-  async submitLaporan(id: string) {
-    const laporan = await this.laporanRepository.findOneBy({ id });
+  async submitLaporan(id: string): Promise<Laporan> {
+    const laporan = await this.laporanRepository.findOne({ where: { id } });
     if (!laporan) {
       throw new NotFoundException(`Laporan with ID ${id} not found`);
+    }
+
+    // Check if both EM and USER have approved
+    if (!laporan.emApproved || !laporan.userApproved) {
+      throw new Error(
+        'Laporan must be approved by both EM and USER before submission',
+      );
+    }
+
+    // Check if laporan is already submitted
+    if (laporan.status === 'submitted') {
+      throw new Error('Laporan is already submitted');
     }
 
     console.log(`Submitting laporan ${id}, current status: ${laporan.status}`);
