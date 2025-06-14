@@ -4,8 +4,10 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { UserRole } from '../../auth/enums/role.enum';
+import { Laporan } from '../../laporan/entities/laporan.entity';
 
 @Entity()
 export class User {
@@ -36,4 +38,7 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @OneToMany(() => Laporan, (laporan) => laporan.assignedTo)
+  assignedLaporans: Laporan[];
 }

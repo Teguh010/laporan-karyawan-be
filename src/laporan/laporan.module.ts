@@ -5,11 +5,13 @@ import { LaporanController } from './laporan.controller';
 import { LaporanService } from './laporan.service';
 import { Laporan } from './entities/laporan.entity';
 import { User } from '../users/entities/user.entity';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Laporan, User]),
-    ConfigModule
+    ConfigModule,
+    UsersModule,
   ],
   controllers: [LaporanController],
   providers: [LaporanService],

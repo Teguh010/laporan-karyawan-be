@@ -71,15 +71,12 @@ export class Laporan {
   @Column({ type: 'integer', nullable: true })
   totalAmountOriginalCurrency: number | null;
 
-  @Column({ type: 'varchar', nullable: true })
-  remarks: string | null;
-
-  @ManyToOne(() => User, { nullable: true })
-  @JoinColumn({ name: 'assignTo' })
-  assignedTo: User | null;
-
   @Column({ type: 'uuid', nullable: true })
   assignTo: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'assignTo' })
+  assignedTo: User | null;
 
   @Column({ type: 'timestamp', nullable: true })
   requestDate: Date | null;

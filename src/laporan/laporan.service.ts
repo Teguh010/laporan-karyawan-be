@@ -5,6 +5,8 @@ import {
   InternalServerErrorException,
   BadRequestException,
   HttpException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -24,6 +26,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class LaporanService {
@@ -37,6 +40,8 @@ export class LaporanService {
     private laporanRepository: Repository<Laporan>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @Inject(forwardRef(() => UsersService))
+    private usersService: UsersService,
     private configService: ConfigService,
   ) {
     this.bucket = this.configService.get<string>('WASABI_BUCKET') || '';
@@ -127,8 +132,10 @@ export class LaporanService {
         destination: file.destination || 'uploads',
       }));
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace =
+        error instanceof Error ? error.stack : 'No stack trace';
       this.logger.error(`Error uploading files: ${errorMessage}`, stackTrace);
       throw new InternalServerErrorException('Failed to upload files');
     }
@@ -178,6 +185,43 @@ export class LaporanService {
       );
 
     await Promise.all(deletePromises);
+  }
+
+  private async validateAssignTo(userId: string | null): Promise<void> {
+    if (!userId) return;
+
+    const userExists = await this.userRepository.exist({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      throw new BadRequestException(`User with ID ${userId} not found`);
+    }
+  }
+
+  async assignTo(laporanId: string, userId: string | null): Promise<Laporan> {
+    await this.validateAssignTo(userId);
+
+    const laporan = await this.laporanRepository.findOne({
+      where: { id: laporanId },
+      relations: ['assignedTo'],
+    });
+
+    if (!laporan) {
+      throw new NotFoundException(`Laporan with ID ${laporanId} not found`);
+    }
+
+    laporan.assignTo = userId;
+    laporan.updatedAt = new Date();
+
+    if (userId) {
+      const user = await this.userRepository.findOneBy({ id: userId });
+      laporan.assignedTo = user;
+    } else {
+      laporan.assignedTo = null;
+    }
+
+    return this.laporanRepository.save(laporan);
   }
 
   async create(
@@ -249,6 +293,11 @@ export class LaporanService {
       const requestDate = new Date(createLaporanDto.requestDate);
       const deliveryDate = new Date(createLaporanDto.deliveryDate);
 
+      // Validasi assignTo
+      if (createLaporanDto.assignTo) {
+        await this.validateAssignTo(createLaporanDto.assignTo);
+      }
+
       const laporanData: Partial<Laporan> = {
         ...createLaporanDto,
         totalAmountIdr: Number(createLaporanDto.totalAmountIdr),
@@ -276,8 +325,10 @@ export class LaporanService {
       );
       return savedLaporan;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace =
+        error instanceof Error ? error.stack : 'No stack trace';
       this.logger.error(`Error creating laporan: ${errorMessage}`, stackTrace);
 
       // Clean up uploaded files if there was an error
@@ -359,13 +410,13 @@ export class LaporanService {
       // Convert FileData to FileObject with signed URLs
       const needApproveFiles = await Promise.all(
         (laporan.needApproveFiles || []).map((file) =>
-          this.mapToFileObject(file as FileData),
+          this.mapToFileObject(file),
         ),
       );
 
       const noNeedApproveFiles = await Promise.all(
         (laporan.noNeedApproveFiles || []).map((file) =>
-          this.mapToFileObject(file as FileData),
+          this.mapToFileObject(file),
         ),
       );
 
@@ -393,8 +444,10 @@ export class LaporanService {
         resubmissionCount: laporan.resubmissionCount || 0,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace =
+        error instanceof Error ? error.stack : 'No stack trace';
       this.logger.error(`Error finding laporan: ${errorMessage}`, stackTrace);
       throw new InternalServerErrorException('Failed to find laporan');
     }
@@ -452,8 +505,10 @@ export class LaporanService {
         })),
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace =
+        error instanceof Error ? error.stack : 'No stack trace';
       this.logger.error(
         `Error finding laporans for user ${userId}: ${errorMessage}`,
         stackTrace,
@@ -527,7 +582,9 @@ export class LaporanService {
     }
 
     const savedLaporan = await this.laporanRepository.save(laporan);
-    this.logger.log(`Laporan ${id} updated, new status: ${savedLaporan.status}`);
+    this.logger.log(
+      `Laporan ${id} updated, new status: ${savedLaporan.status}`,
+    );
     return savedLaporan;
   }
 
@@ -543,7 +600,8 @@ export class LaporanService {
       throw new NotFoundException(`Laporan with ID ${id} not found`);
     }
 
-    const queryRunner = this.laporanRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.laporanRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -551,7 +609,8 @@ export class LaporanService {
       const previousStatus = laporan.status;
 
       if (updateData) {
-        const { needApproveFiles, noNeedApproveFiles, ...laporanData } = updateData;
+        const { needApproveFiles, noNeedApproveFiles, ...laporanData } =
+          updateData;
         Object.assign(laporan, laporanData);
 
         if (needApproveFiles?.length) {
@@ -594,8 +653,10 @@ export class LaporanService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const stackTrace = error instanceof Error ? error.stack : 'No stack trace';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      const stackTrace =
+        error instanceof Error ? error.stack : 'No stack trace';
 
       this.logger.error(
         `Error resubmitting laporan ${id}: ${errorMessage}`,
@@ -631,7 +692,9 @@ export class LaporanService {
       if (startDate) {
         const start = new Date(startDate);
         if (!isNaN(start.getTime())) {
-          query.andWhere('laporan.createdAt >= :startDate', { startDate: start });
+          query.andWhere('laporan.createdAt >= :startDate', {
+            startDate: start,
+          });
         }
       }
 
@@ -670,7 +733,10 @@ export class LaporanService {
       this.logger.log(`Laporan ${id} submitted successfully`);
       return savedLaporan;
     } catch (error) {
-      this.logger.error(`Error submitting laporan: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error submitting laporan: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Failed to submit laporan');
     }
   }
@@ -701,7 +767,10 @@ export class LaporanService {
 
       return await this.laporanRepository.save(laporan);
     } catch (error) {
-      this.logger.error(`Error approving laporan: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error approving laporan: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Failed to approve laporan');
     }
   }
@@ -732,7 +801,10 @@ export class LaporanService {
 
       return await this.laporanRepository.save(laporan);
     } catch (error) {
-      this.logger.error(`Error rejecting laporan: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error rejecting laporan: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('Failed to reject laporan');
     }
   }

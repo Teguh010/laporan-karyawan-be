@@ -149,17 +149,31 @@ export class LaporanController {
   }
 
   @Put(':id/approve')
-  @Roles(UserRole.EM, UserRole.USER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.EM, UserRole.USER, UserRole.VENDOR)
   async approveLaporan(
     @Param('id') id: string,
     @Body() approveDto: ApproveLaporanDto,
     @Req() request: RequestWithUser,
   ) {
-    console.log(`Approval request received for laporan ${id}`);
-    console.log(`User data:`, request.user);
+    console.log('User data:', request.user);
     console.log(`Approval role: ${approveDto.role}`);
 
-    return this.laporanService.approveLaporan(id, approveDto.role as 'EM' | 'USER' | 'VENDOR');
+    return this.laporanService.approveLaporan(
+      id,
+      approveDto.role as 'EM' | 'USER' | 'VENDOR',
+    );
+  }
+
+  @Put(':id/assign')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.VENDOR, UserRole.EM)
+  async assignLaporan(
+    @Param('id') id: string,
+    @Body() assignDto: { userId: string | null },
+  ) {
+    console.log(`Assigning laporan ${id} to user ${assignDto.userId}`);
+    return this.laporanService.assignTo(id, assignDto.userId);
   }
 
   @Put(':id/reject')
@@ -273,7 +287,8 @@ export class LaporanController {
       if (error instanceof HttpException) {
         throw error;
       }
-      const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Internal server error';
       throw new InternalServerErrorException({
         statusCode: 500,
         message: 'Failed to resubmit laporan',
