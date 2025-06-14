@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum LaporanStatus {
   DRAFT = 'draft',
@@ -12,7 +15,7 @@ export enum LaporanStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   RESUBMITTED = 'resubmitted',
-  ENTRY = 'entry'
+  ENTRY = 'entry',
 }
 
 export interface FileData {
@@ -71,7 +74,11 @@ export class Laporan {
   @Column({ type: 'varchar', nullable: true })
   remarks: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assignTo' })
+  assignedTo: User | null;
+
+  @Column({ type: 'uuid', nullable: true })
   assignTo: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
@@ -89,12 +96,10 @@ export class Laporan {
   @Column({ type: 'varchar', nullable: true })
   currency: string | null;
 
-
-
-  @Column({ 
+  @Column({
     type: 'enum',
     enum: LaporanStatus,
-    default: LaporanStatus.ENTRY 
+    default: LaporanStatus.ENTRY,
   })
   status: LaporanStatus;
 
@@ -107,21 +112,33 @@ export class Laporan {
   @Column({ default: false })
   userApproved: boolean;
 
+  @Column({ type: 'varchar', nullable: true })
+  description: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  createdBy: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  updatedBy: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  rejectedAt: Date | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  rejectedBy: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  rejectReason: string | null;
+
+  @Column({ type: 'integer', default: 0 })
+  resubmissionCount: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Column({ type: 'text', nullable: true })
-  rejectReason: string | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  rejectedAt: Date | null;
-
-  @Column({ type: 'varchar', nullable: true })
-  rejectedBy: string | null;
-
-  @Column({ name: 'resubmission_count', type: 'integer', default: 0 })
-  resubmissionCount: number;
 }

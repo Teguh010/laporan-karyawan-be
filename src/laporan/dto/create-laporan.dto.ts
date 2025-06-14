@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsBoolean,
   IsOptional,
+  IsUUID,
 } from 'class-validator';
 
 export enum PoType {
@@ -61,7 +62,7 @@ export class CreateLaporanDto {
   @IsOptional()
   remarks: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   assignTo: string;
 
@@ -95,6 +96,14 @@ export class CreateLaporanDto {
   @IsBoolean()
   @IsOptional()
   vendorApproved: boolean;
+
+  @IsString()
+  @IsOptional()
+  description: string;
+
+  @IsUUID()
+  @IsOptional()
+  userId: string;
 
   @IsOptional()
   needApproveFiles?: Array<{

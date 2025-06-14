@@ -1,8 +1,12 @@
-import { IsIn } from 'class-validator';
+import { IsEnum } from 'class-validator';
+
+export enum ApprovalRole {
+  EM = 'EM',
+  USER = 'USER',
+  VENDOR = 'VENDOR',
+}
 
 export class ApproveLaporanDto {
-  @IsIn(['emApproved', 'userApproved'], {
-    message: 'Role must be either emApproved or userApproved',
-  })
-  role: 'emApproved' | 'userApproved';
+  @IsEnum(ApprovalRole)
+  role: ApprovalRole;
 }

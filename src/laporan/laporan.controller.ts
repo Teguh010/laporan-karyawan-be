@@ -26,6 +26,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/role.enum';
 import { Request } from 'express';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { LaporanInterface } from './interfaces/laporan.interface';
 
 // Tambahkan interface untuk request user
 interface RequestWithUser extends Request {
@@ -38,6 +40,7 @@ interface RequestWithUser extends Request {
 
 @Controller('laporan')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@ApiTags('laporan')
 export class LaporanController {
   constructor(private readonly laporanService: LaporanService) {}
 
@@ -69,8 +72,30 @@ export class LaporanController {
 
   @Get()
   @Roles(UserRole.VENDOR, UserRole.EM, UserRole.USER)
-  getAllLaporan() {
-    return this.laporanService.findAll();
+  @ApiOperation({ summary: 'Get all laporans' })
+  @ApiResponse({
+    status: 200,
+    description: 'Return all laporans.',
+    type: [Laporan],
+  })
+  async findAll(): Promise<LaporanInterface[]> {
+    return await this.laporanService.findAll();
+  }
+
+  @Get('assigned/:userId')
+  @Roles(UserRole.VENDOR, UserRole.EM, UserRole.USER)
+  @ApiOperation({ summary: 'Get laporans assigned to a specific user' })
+  @ApiResponse({
+    status: 200,
+    description: 'Return laporans assigned to the user.',
+    type: [Laporan],
+  })
+  @ApiResponse({ status: 404, description: 'User not found.' })
+  async findAssignedToUser(
+    @Param('userId') userId: string,
+  ): Promise<LaporanInterface[]> {
+    const laporans = await this.laporanService.findAssignedToUser(userId);
+    return laporans;
   }
 
   // PENTING: Endpoint dengan path spesifik harus didefinisikan SEBELUM endpoint dengan parameter dinamis
@@ -134,7 +159,7 @@ export class LaporanController {
     console.log(`User data:`, request.user);
     console.log(`Approval role: ${approveDto.role}`);
 
-    return this.laporanService.approveLaporan(id, approveDto.role);
+    return this.laporanService.approveLaporan(id, approveDto.role as 'EM' | 'USER' | 'VENDOR');
   }
 
   @Put(':id/reject')
